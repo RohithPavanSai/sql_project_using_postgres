@@ -1,0 +1,37 @@
+INSERT INTO job_applied
+(
+    job_id,
+    application_sent_date,
+    custom_resume,
+    resume_file_name,
+    cover_letter_sent,
+    cover_letter_file_name,
+    status
+    )
+VALUES(
+    7,
+    '2025-04-01',
+    TRUE,
+    'resume_03.pdf',
+    TRUE,
+    'cover_letter_03.pdf',
+    'submitted'
+),
+(
+8,
+'2025-03-19',
+FALSE,
+NULL,
+FALSE,
+NULL,
+'submitted'
+),
+(
+9,
+'2025-03-22',
+TRUE,
+'resume_05.pdf',
+TRUE,
+'cover_letter_05.pdf',
+'submitted'    
+)
