@@ -1,4 +1,4 @@
-/* this is like a summary, I am just gonna get top 100 jobs 
+/* this is first code, I am just gonna get top 100 jobs 
 ordered by their salaries,and gonna mention the location,salary,skills and companies*/
 
 -- BASIC STRUCTURE 
@@ -47,4 +47,10 @@ ORDER BY salary_year_avg DESC NULLS LAST
 /* After Analysing the code thorougly I found:
 Main imporvement: currently my code is aggregating skills for all jobs and then taking
 top 100, for a much larger database it can be slower, so first get top100 and then
-aggregate, I am keeping the code same though...!!!*/
+aggregate,
+
+2.The group by section has only job_id and I didnot include other columns, but all of them
+are unique and postgres understands it, but most other sql may not allow it, I have to group by
+all the columns
+
+ I am keeping the code same though...!!!*/

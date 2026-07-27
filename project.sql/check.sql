@@ -1,3 +1,3 @@
 SELECT *from 
-company_dim
+skills_dim
 limit 1000
