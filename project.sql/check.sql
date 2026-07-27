@@ -1,3 +1,3 @@
 SELECT *from 
-skills_dim
+job_postings_fact
 limit 1000
