@@ -12,4 +12,10 @@ GROUP BY job_location
 ORDER BY
 no_of_jobs DESC NULLS LAST
 
-/* so there are many remote jobs */
+/* so there are many remote jobs and Singapore has second most jobs, I didn't do normalisation because it would not make much sense
+Anywhere on top
+Singapore
+Paris
+Newyork
+Atlanta
+*/
