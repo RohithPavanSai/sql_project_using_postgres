@@ -1,3 +1,9 @@
+/* I used codes from previous files and made them as tables,
+I gave equal importance to both the no of jobs per skill and highest salary per skill
+so I averaged those normalised values and code a score and ordered by using the score*/
+
+
+
 WITH demand as (WITH before_normalisation AS (SELECT 
 skills_job_dim.skill_id,
 skills_dim.skills,
@@ -71,3 +77,7 @@ demand
 INNER JOIN high_salary ON demand.skill_id = high_salary.skill_id
 ORDER BY 
 score DESC NULLS LAST
+
+/* sql,svn,excel,python and tableau are the tops 5 skills based on my analysis
+sql,excel,python and tableau all have very high job postings and decent salaies
+but svn is in this list because of it's exceptionally high salary 

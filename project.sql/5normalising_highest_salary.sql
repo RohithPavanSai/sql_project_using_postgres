@@ -1,3 +1,6 @@
+/* just like previous file I did normalization*/
+
+
 WITH before_normalisation AS (SELECT
 skills_job_dim.skill_id,
 skills_dim.skills,
