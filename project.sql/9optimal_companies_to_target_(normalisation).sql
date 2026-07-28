@@ -90,3 +90,8 @@ demand
 INNER JOIN high_salary ON demand.company_id= high_salary.company_id
 ORDER BY 
 score DESC NULLS LAST
+
+/* I used the same exact normalisation techinque which I used before,
+looking at results, 
+Robert Half , Mantys, Citi , Insight Global and Dice are best companies
+to target for a Data Analyst role*/
