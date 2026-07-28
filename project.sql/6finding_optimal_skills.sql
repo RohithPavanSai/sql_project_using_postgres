@@ -80,4 +80,4 @@ score DESC NULLS LAST
 
 /* sql,svn,excel,python and tableau are the top 5 skills which an aspiring Data Analyst should learn based on my analysis 
 sql,excel,python and tableau all have very high job postings and decent salaies
-but svn is in this list because of it's exceptionally high salary 
+but svn is in this list because of it's exceptionally high salary */
