@@ -1,1 +1,531 @@
-update this lateR
+
+# Data Analyst Job Market Analysis: My SQL Journey
+
+Welcome to my SQL project! I built this to analyze the Data Analyst job market, figuring out the most optimal skills to learn and the best companies to target. I wanted to balance both demand (number of job postings) and compensation (average salary) to find the absolute best options out there.
+
+Here is a complete walkthrough of my journey, including the raw SQL scripts, my thought process at every step, and the actual data outputs I generated.
+
+## Database Structure Overview
+
+Basically, there are job listings in one main table called `job_postings_fact` with `skill_id` and `company_id` as foreign keys. Then we have a `skills_job_dim` table which acts as a bridge containing `job_id` and `skill_id`. We also have `skills_dim` with the actual skill names and `company_dim` with the company details.
+
+---
+
+## Step 1: Getting High-Paying Jobs for Data Analysts
+
+I started by just grabbing the top 100 jobs ordered by their salaries. I wanted to mention the location, salary, skills, and companies in one place.
+
+```sql
+/* 1getting_high_paying_jobs_for_Data_Analyst.sql */
+
+WITH skills_temp AS(
+SELECT
+job_postings_fact.job_id,
+job_postings_fact.company_id,
+job_title_short,
+STRING_AGG(distinct skills_dim.skills,',') AS all_skills,
+job_location,
+job_posted_date::DATE,
+salary_year_avg
+FROM
+job_postings_fact
+LEFT JOIN skills_job_dim ON job_postings_fact.job_id = skills_job_dim.job_id
+LEFT JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+job_title_short LIKE '%Data%Analyst%'
+GROUP BY job_postings_fact.job_id
+ORDER BY salary_year_avg DESC NULLS LAST
+LIMIT 100
+)
+SELECT
+skills_temp.job_id,
+job_title_short,
+all_skills,
+job_location,
+job_posted_date::DATE,
+salary_year_avg,
+company_dim.name as comp_name
+FROM
+skills_temp
+LEFT JOIN company_dim ON skills_temp.company_id = company_dim.company_id
+ORDER BY salary_year_avg DESC NULLS LAST
+
+```
+
+### Key Takeaways & Self-Correction
+
+After analyzing this initial code thoroughly, I found a few things:
+
+* **Performance:** Currently, my code aggregates skills for *all* jobs and then takes the top 100. For a much larger database, this can be slower. The better way is to get the top 100 first and then aggregate.
+
+
+* **Syntax strictness:** The `GROUP BY` section only has `job_id` and I didn't include the other columns. Since all of them are unique, Postgres understands it, but most other SQL engines may not allow it; I would normally have to group by all the columns.
+
+
+
+I am keeping the code the same though...!!!
+
+**Output (Snippet):**
+
+```csv
+"job_id","job_title_short","all_skills","job_location","job_posted_date","salary_year_avg","comp_name"
+226942,"Data Analyst","","Anywhere","2023-02-20","650000.0","Mantys"
+693752,"Senior Data Analyst","","Santa Monica, CA","2023-06-22","425000.0","The Walt Disney Company"
+209315,"Data Analyst","git,kafka,linux,oracle,svn","Belarus","2023-10-03","400000.0","ЛАНИТ"
+1110602,"Data Analyst","excel,python,r,tableau,vba","Bethesda, MD","2023-08-18","375000.0","Illuminate Mission Solutions"
+1147675,"Data Analyst","","Bethesda, MD","2023-04-05","375000.0","Illuminate Mission Solutions"
+...
+
+```
+
+---
+
+## Step 2: Finding the Highest Demand Skills
+
+This is a simple code to get the most demanded skills for Data Analyst roles.
+
+```sql
+/* 2highest_demand_skills.sql */
+
+SELECT 
+skills_job_dim.skill_id,
+skills_dim.skills,
+COUNT(*) as no_of_jobs_per_skill
+FROM
+skills_job_dim
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+INNER JOIN job_postings_fact ON job_postings_fact.job_id = skills_job_dim.job_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+skills_dim.skills
+ORDER BY no_of_jobs_per_skill DESC NULLS LAST
+LIMIT 1000
+
+```
+
+*Note on my process:* I initially used a `RIGHT JOIN` here. It wasn't strictly necessary, but it showed an important observation: there are 36,801 jobs listed for data analysts with skills not mentioned in the `skills_job_dim` table. I changed it to an `INNER JOIN` in the final code because my goal is to find the most demanded skills, not just to look at interesting missing data observations.
+
+---
+
+## Step 3: Finding the Highest Paying Skills
+
+Next, I wrote a simple query to get the average of salaries and sort the skills as per the highest salary.
+
+```sql
+/* 3highest_salary_skills.sql */
+
+SELECT
+skills_job_dim.skill_id,
+skills_dim.skills,
+AVG(job_postings_fact.salary_year_avg) as salary_avg
+FROM
+skills_job_dim
+INNER JOIN job_postings_fact ON skills_job_dim.job_id = job_postings_fact.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+Skills_dim.skills
+ORDER BY
+salary_avg DESC NULLS LAST
+LIMIT
+1000
+
+```
+
+---
+
+## Steps 4 & 5: Normalizing Demand and Salary
+
+Since I am trying to find the *best* skills based on both demand (number of postings) and the highest salary, the plan is to average both, giving 50% importance to each. Just averaging raw numbers is not optimal and not meaningful, so I used min-max normalization.
+
+**Normalizing High Demand:**
+
+```sql
+/* 4normalising_high_demand.sql */
+
+WITH before_normalisation AS (SELECT 
+skills_job_dim.skill_id,
+skills_dim.skills,
+COUNT(*) as no_of_jobs_per_skill
+FROM
+skills_job_dim
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+INNER JOIN job_postings_fact ON job_postings_fact.job_id = skills_job_dim.job_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+skills_dim.skills
+ORDER BY no_of_jobs_per_skill DESC NULLS LAST),
+
+ready_to_normalise as (SELECT
+    skill_id,
+    skills,
+    no_of_jobs_per_skill,
+    MIN(no_of_jobs_per_skill) OVER() as minn,
+    MAX(no_of_jobs_per_skill) OVER() as maxx
+    FROM 
+    before_normalisation)
+
+SELECT 
+skill_id,
+    skills,
+(no_of_jobs_per_skill - minn)*1.0/(maxx-minn) as norm_value_for_demand
+FROM
+ready_to_normalise
+
+```
+
+**Normalizing Highest Salary:**
+Just like the previous file, I applied the exact same normalization logic to the salary averages.
+
+```sql
+/* 5normalising_highest_salary.sql */
+
+WITH before_normalisation AS (SELECT
+skills_job_dim.skill_id,
+skills_dim.skills,
+AVG(job_postings_fact.salary_year_avg) as salary_avg
+FROM
+skills_job_dim
+INNER JOIN job_postings_fact ON skills_job_dim.job_id = job_postings_fact.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+Skills_dim.skills
+ORDER BY
+salary_avg DESC NULLS LAST),
+
+ready_to_normalise as (SELECT
+    skill_id,
+    skills,
+    salary_avg,
+    MIN(salary_avg) OVER() as minn,
+    MAX(salary_avg) OVER() as maxx
+    FROM 
+    before_normalisation)
+SELECT 
+skill_id,
+    skills,
+(salary_avg - minn)*1.0/(maxx-minn) as norm_value_for_salary
+FROM
+ready_to_normalise
+
+```
+
+---
+
+## Step 6: Finding the Optimal Skills
+
+I used the codes from the previous files, made them into CTE tables, and averaged those normalized values to calculate a final score. I gave equal importance to both the number of jobs per skill and the highest salary per skill.
+
+```sql
+/* 6finding_optimal_skills.sql */
+
+WITH demand as (WITH before_normalisation AS (SELECT 
+skills_job_dim.skill_id,
+skills_dim.skills,
+COUNT(*) as no_of_jobs_per_skill
+FROM
+skills_job_dim
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+INNER JOIN job_postings_fact ON job_postings_fact.job_id = skills_job_dim.job_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+skills_dim.skills
+),
+
+ready_to_normalise as (SELECT
+    skill_id,
+    skills,
+    no_of_jobs_per_skill,
+    MIN(no_of_jobs_per_skill) OVER() as minn,
+    MAX(no_of_jobs_per_skill) OVER() as maxx
+    FROM 
+    before_normalisation)
+
+SELECT 
+skill_id,
+    skills,
+(no_of_jobs_per_skill - minn)*1.0/(maxx-minn) as norm_value_for_demand
+FROM
+ready_to_normalise),
+
+high_salary as (
+    WITH before_normalisation AS (SELECT
+skills_job_dim.skill_id,
+skills_dim.skills,
+AVG(job_postings_fact.salary_year_avg) as salary_avg
+FROM
+skills_job_dim
+INNER JOIN job_postings_fact ON skills_job_dim.job_id = job_postings_fact.job_id
+INNER JOIN skills_dim ON skills_job_dim.skill_id = skills_dim.skill_id
+WHERE
+job_postings_fact.job_title_short = 'Data Analyst'
+GROUP BY
+skills_job_dim.skill_id,
+Skills_dim.skills),
+
+ready_to_normalise as (SELECT
+    skill_id,
+    skills,
+    salary_avg,
+    MIN(salary_avg) OVER() as minn,
+    MAX(salary_avg) OVER() as maxx
+    FROM 
+    before_normalisation)
+SELECT 
+skill_id,
+    skills,
+(salary_avg - minn)*1.0/(maxx-minn) as norm_value_for_salary
+FROM
+ready_to_normalise
+)
+
+SELECT 
+demand.skill_id,
+demand.skills,
+(demand.norm_value_for_demand + high_salary.norm_value_for_salary)/2 as score
+FROM
+demand
+INNER JOIN high_salary ON demand.skill_id = high_salary.skill_id
+ORDER BY 
+score DESC NULLS LAST
+
+```
+
+### The Verdict on Skills
+
+Based on my analysis, **SQL, SVN, Excel, Python, and Tableau** are the top 5 skills an aspiring Data Analyst should learn. SQL, Excel, Python, and Tableau all have very high job postings and decent salaries. SVN made it onto this list entirely because of its exceptionally high salary.
+
+**Output:**
+
+```csv
+"skill_id","skills","score"
+0,"sql","0.56502006362124141617"
+224,"svn","0.50030768566400725491"
+181,"excel","0.41249499583811102246"
+1,"python","0.38173424904462869061"
+182,"tableau","0.31852349780244560727"
+183,"power bi","0.27217096290561285201"
+5,"r","0.23061557467743443076"
+38,"solidity","0.18359205565294798599"
+...
+
+```
+
+---
+
+## Steps 7, 8 & 9: Finding the Optimal Companies
+
+To find the best companies, I replicated the exact same normalization technique I used for skills. First, I got the companies offering the most jobs, then the companies giving the highest salaries, and finally combined them into a normalized score.
+
+**Highest Job Offering Companies:**
+
+```sql
+/* 7highest_jb_offering_companies.sql */
+SELECT
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google,
+COUNT(*) AS no_of_jobs_per_company
+FROM
+job_postings_fact
+INNER JOIN company_dim ON job_postings_fact.company_id = company_dim.company_id
+WHERE job_title_short = 'Data Analyst'
+GROUP BY
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google
+ORDER BY
+no_of_jobs_per_company DESC NULLS LAST
+
+```
+
+**Highest Salary Giving Companies:**
+
+```sql
+/* 8highest_salary_avg_givin_companies.sql */
+SELECT
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google,
+AVG(salary_year_avg) AS avg_sal_per_company
+FROM
+job_postings_fact
+INNER JOIN company_dim ON job_postings_fact.company_id = company_dim.company_id
+WHERE job_title_short = 'Data Analyst'
+AND salary_year_avg IS NOT NULL
+GROUP BY
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google
+ORDER BY
+avg_sal_per_company DESC NULLS LAST
+
+```
+
+**Normalizing to find the Optimal Targets:**
+
+```sql
+/* 9optimal_companies_to_target_(normalisation).sql */
+WITH demand AS (WITH before_normalisation AS (SELECT
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google,
+COUNT(*) AS no_of_jobs_per_company
+FROM
+job_postings_fact
+INNER JOIN company_dim ON job_postings_fact.company_id = company_dim.company_id
+WHERE job_title_short = 'Data Analyst'
+GROUP BY
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google
+),
+
+ready_to_normalise as (SELECT
+   company_id,
+   name,
+   link,
+   link_google,
+   no_of_jobs_per_company,
+    MIN(no_of_jobs_per_company) OVER() as minn,
+    MAX(no_of_jobs_per_company) OVER() as maxx
+    FROM 
+    before_normalisation)
+
+SELECT 
+company_id,
+   name,
+   link,
+   link_google,
+(no_of_jobs_per_company - minn)*1.0/(maxx-minn) as norm_value_for_demand
+FROM
+ready_to_normalise),
+
+high_salary as(
+   WITH before_normalisation AS (SELECT
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google,
+AVG(salary_year_avg) AS avg_sal_per_company
+FROM
+job_postings_fact
+INNER JOIN company_dim ON job_postings_fact.company_id = company_dim.company_id
+WHERE job_title_short = 'Data Analyst'
+AND 
+salary_year_avg IS NOT NULL
+GROUP BY
+company_dim.company_id,
+company_dim.name,
+company_dim.link,
+company_dim.link_google
+),
+
+ready_to_normalise as (SELECT
+   company_id,
+   name,
+   link,
+   link_google,
+   avg_sal_per_company,
+    MIN(avg_sal_per_company) OVER() as minn,
+    MAX(avg_sal_per_company) OVER() as maxx
+    FROM 
+    before_normalisation)
+
+SELECT 
+company_id,
+   name,
+   link,
+   link_google,
+(avg_sal_per_company - minn)*1.0/(maxx-minn) as norm_value_for_salary
+FROM
+ready_to_normalise 
+)
+
+SELECT 
+demand.company_id,
+demand.name,
+demand.link,
+demand.link_google,
+(demand.norm_value_for_demand + high_salary.norm_value_for_salary)/2 as score
+FROM
+demand
+INNER JOIN high_salary ON demand.company_id= high_salary.company_id
+ORDER BY 
+score DESC NULLS LAST
+
+```
+
+### The Verdict on Companies
+
+Looking at the results, **Robert Half, Mantys, Citi, Insight Global, and Dice** are the absolute best companies to target for a Data Analyst role.
+
+**Output (Top Results):**
+
+```csv
+"company_id","name","link","link_google","score"
+797,"Robert Half","http://www.rhi.com/","...","0.51825317460317460309"
+319998,"Mantys","","...","0.50000000000000000000"
+66,"Citi","http://www.citigroup.com/","...","0.46738608253968253977"
+156,"Insight Global","http://www.insightglobal.com/","...","0.45200893630952380926"
+1148,"Dice","","...","0.33519642857142857143"
+...
+
+```
+
+---
+
+## Step 10: Which Place has the Most Data Analyst Jobs?
+
+It's a simple query to know which place or city has more Data Analyst roles.
+
+```sql
+/* 10_which_place_has_most_DA_jobs.sql */
+
+SELECT
+job_location,
+COUNT(*) AS no_of_jobs,
+AVG(salary_year_avg) as salary_average
+FROM
+job_postings_fact
+WHERE
+job_title_short = 'Data Analyst'
+GROUP BY job_location
+ORDER BY
+no_of_jobs DESC NULLS LAST
+
+```
+
+### Final Location Thoughts
+
+I didn't do normalization for locations because it wouldn't make much sense in this context. Ultimately, "Anywhere" (remote) is on top, followed by Singapore, Paris, New York, and Atlanta.
+
+**Output (Snippet):**
+
+```csv
+"job_location","no_of_jobs","salary_average"
+"Anywhere","13331","94769.856464714404"
+"Singapore","6578","95461.537037037037"
+"Paris, France","3804","76941.019230769231"
+"New York, NY","3038","101078.546444954128"
+"Atlanta, GA","2734","93701.192040598291"
+...
+
+```
