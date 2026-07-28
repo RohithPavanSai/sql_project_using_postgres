@@ -12,7 +12,7 @@ GROUP BY
 skills_job_dim.skill_id,
 skills_dim.skills
 ORDER BY no_of_jobs_per_skill DESC NULLS LAST
-LIMIT 100
+LIMIT 1000
 
 /* this is a simple code to get most demanded skills for
 data analyst roles,
