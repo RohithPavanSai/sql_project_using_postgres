@@ -1,7 +1,9 @@
 
 *****
-Open this website for a detailed project walkthrough:
+Open this website for a detailed project walkthrough and description:
 https://rohithpavansai.github.io/readme_website_for_sql_project
+
+Has a better UI and easier to navigate, recommended to open website than reading the README below
 
 *****
 
